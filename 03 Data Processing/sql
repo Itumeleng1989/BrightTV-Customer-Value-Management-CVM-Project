@@ -1,0 +1,232 @@
+--Count duplicates information in user profiles 
+SELECT UserID,
+COUNT(*) AS Duplicate_Count
+FROM brighttv.default.user_profiles
+GROUP BY UserID
+HAVING COUNT(*) > 1;
+
+select *
+from brighttv.default.user_profiles;
+
+--Count no. of uniqe viewers that male or femail
+SELECT
+    LOWER(TRIM(Gender)) AS Gender,
+    COUNT(DISTINCT UserID) AS User_Count
+FROM brighttv.default.user_profiles
+WHERE LOWER(TRIM(Gender)) IN ('male', 'female')
+GROUP BY LOWER(TRIM(Gender))
+ORDER BY Gender;
+
+--count unique viewers by race
+
+SELECT
+    LOWER(TRIM(Race)) AS Race,
+    COUNT(DISTINCT UserID) AS User_Count
+FROM brighttv.default.user_profiles
+WHERE LOWER(TRIM(Race)) IN ('white', 'black', 'indian_asian', 'coloured', 'other', 'None', '' )
+GROUP BY LOWER(TRIM(Race))
+ORDER BY Race;
+
+--count unique viewers by age
+SELECT
+   Case 
+     when Age = 0 then 'Infant'
+     when Age between 1 and 12 then 'Child'
+     when Age between 13 and 19 then 'Teenager'
+     when Age between 20 and 34 then 'Young Adult'
+     when Age between 35 and 50 then 'Adult'
+     when Age between 51 and 60 then 'Middle Aged'
+     when Age > 61 then 'Pensioner' 
+     else 'Unknown' 
+     End as Age_Classification,
+    COUNT(DISTINCT UserID) AS User_Count
+FROM brighttv.default.user_profiles
+WHERE Age IS NOT NULL
+GROUP BY
+    CASE
+     when Age = 0 then 'Infant'
+     when Age between 1 and 12 then 'Child'
+     when Age between 13 and 19 then 'Teenager'
+     when Age between 20 and 34 then 'Young Adult'
+     when Age between 35 and 50 then 'Adult'
+     when Age between 51 and 60 then 'Middle Aged'
+     when Age > 61 then 'Pensioner' 
+     else 'Unknown'
+    END
+ORDER BY MIN(Age);
+
+--count unique viewers by province
+SELECT
+    LOWER(TRIM(Province)) AS Province,
+    COUNT(DISTINCT UserID) AS User_Count
+FROM brighttv.default.user_profiles
+WHERE LOWER(TRIM(Province)) IN ('Eastern Cape', 'Gauteng', 'Mpumalanga', 'North West', 'Western Cape', 'Mpumalanga', 'Northern Cape', 'KwaZulu Natal', 'Limpopo', 'None', '')
+GROUP BY LOWER(TRIM(Province))
+ORDER BY Province;
+--count unique viewers by province
+SELECT
+    Province,
+    COUNT(DISTINCT UserID) AS User_Count
+FROM brighttv.default.user_profiles
+WHERE Province IS NOT NULL
+GROUP BY Province
+ORDER BY User_Count DESC;
+
+--Count the no. unique channels
+select count(distinct Channel2) as unique_channels
+from brighttv.default.viewership;
+
+--Analysis Period
+select min(RecordDate2) as earliest_time, 
+max(RecordDate2) as latest_time
+from brighttv.default.viewership;
+
+--Count of active subscribers 
+select count(distinct UserID0) as active_subscribers
+from brighttv.default.viewership;
+
+
+---------------------------------------------------------------------------------------
+--Creating classifications for the user profiles and replacing null/blanks with unknown
+----------------------------------------------------------------------------------------
+with CTE_1 as ( 
+SELECT
+    UserID,
+
+    CASE
+        WHEN Gender IS NULL
+          OR TRIM(Gender) = ''
+          OR LOWER(TRIM(Gender)) = 'none'
+        THEN 'Unknown'
+        ELSE Gender
+    END AS Gender,
+
+    CASE
+        WHEN Race IS NULL
+          OR TRIM(Race) = ''
+          OR LOWER(TRIM(Race)) = 'none'
+        THEN 'Unknown'
+        ELSE Race
+    END AS Ethnicity,
+   Age,
+--checking age buckets 
+   Case 
+     when Age = 0 then 'Infant'
+     when Age between 1 and 12 then 'Child'
+     when Age between 13 and 19 then 'Teenager'
+     when Age between 20 and 34 then 'Young Adult'
+     when Age between 35 and 50 then 'Adult'
+     when Age between 51 and 60 then 'Middle Aged'
+     when Age > 61 then 'Pensioner' 
+     else 'Unknown' 
+     End as Age_Classification,
+
+    CASE
+        WHEN Province IS NULL
+          OR TRIM(Province) = ''
+          OR LOWER(TRIM(Province)) = 'none'
+        THEN 'Unknown'
+        ELSE Province
+    END AS Province,
+
+    CASE 
+    when Email is NULL
+    OR TRIM(Email) = ''
+    OR LOWER(TRIM(Email)) = 'none'
+    THEN 'Unknown'
+    ELSE Email
+    END AS Email,
+
+    CASE
+    when `Social Media Handle` is NULL
+    OR TRIM(`Social Media Handle`) = ''
+    OR LOWER(TRIM(`Social Media Handle`)) = 'none'
+    THEN 'Unknown'
+    ELSE `Social Media Handle`
+    END AS Social_Media_Handle
+
+FROM brighttv.default.user_profiles),
+
+---------------------------------------------------------------------------------------
+--Creating classifications for the viewership
+----------------------------------------------------------------------------------------
+CTE_2 as (
+--using coalesce to remove duplicates
+select 
+coalesce(UserID0, userid4) as UserID,
+Channel2,
+--converting to SAS time
+Dateadd(hour, 2, RecordDate2) AS SAS_time,--Combining the two user I
+ -- Convert the timestamp to a SQL date
+    --CAST(RecordDate2 AS DATE) AS ViewingDate,
+    date_format(SAS_time, 'yyyy-MM-dd') as Viewing_Date,
+    date_format(SAS_time, 'hh:mm:ss') as Watch_time,
+    dayname(SAS_time) as Day_name,
+    monthname (SAS_time) as Month_name,
+    case 
+    when Day_name in ('Mon','Tue','Wed','Thu','Fri') then 'Weekday'
+    when Day_name in ('Sat','Sun') then 'Weekend'
+    end as Day_Classification,
+--Classifying the transaction time 
+   --case 
+   --when hour(RecordDate2) between 0 and 5 then '01.Early_Morning'
+   --when hour(RecordDate2) between 6 and 11 then '02.Morning'
+   --when hour(RecordDate2) between 12 and 17 then '03.Afternoon'
+   --when hour(RecordDate2) between 18 and 23 then '04.Evening'
+   --end as Time_Classification,
+       --CASE
+        --WHEN HOUR(RecordDate2) >= 5
+             --AND HOUR(RecordDate2) < 12
+            --THEN 'Morning'
+        --WHEN HOUR(RecordDate2) >= 12
+             --AND HOUR(RecordDate2) < 17
+            --THEN 'Afternoon'
+        --WHEN HOUR(RecordDate2) >= 17
+             --AND HOUR(RecordDate2) < 21
+            --THEN 'Evening'
+        --ELSE 'Night'
+    --END AS Time_of_Day,
+    case 
+    when Watch_time between '00:00:00' and '05:59:00' then '01.Early_Morning'
+    when Watch_time between '06:00:00' and '11:59:00' then '02.Morning'
+    when Watch_time between '12:00:00' and '17:59:00' then '03.Afternoon'
+    when Watch_time between '18:00:00' and '23:59:00' then '04.Evening'
+    end as Time_Classification,
+    -- Convert duration to seconds
+    DATEDIFF(SECOND,'00:00:00',TRY_CAST(`Duration 2` AS TIME)) AS ViewingSeconds,
+    -- Convert duration to minutes
+    DATEDIFF(SECOND,'00:00:00',TRY_CAST(`Duration 2` AS TIME)) / 60.0 AS ViewingMinutes,
+    -- Convert duration to hours
+    DATEDIFF(SECOND,'00:00:00',TRY_CAST(`Duration 2` AS TIME)) / 3600.0 AS ViewingHours,
+
+        CASE
+        WHEN ViewingMinutes = 0 THEN 'Not Watched'
+        WHEN ViewingMinutes > 0 AND ViewingMinutes < 15 THEN 'Very Short Viewing'
+        WHEN ViewingMinutes >= 15 AND ViewingMinutes < 30 THEN 'Short Viewing'
+        WHEN ViewingMinutes >= 30 AND ViewingMinutes < 60 THEN 'Medium Viewing'
+        WHEN ViewingMinutes >= 60 AND ViewingMinutes < 120 THEN 'Long Viewing'
+        WHEN ViewingMinutes >= 120 THEN 'Extended Viewing'
+        ELSE 'Unknown'
+    END AS Viewing_Duration_Category
+
+from brighttv.default.viewership)
+--Joining the two tables together
+select 
+CTE_1.UserID,
+Gender,
+Ethnicity,
+Age_Classification,
+Province,
+Channel2,
+SAS_time,
+Watch_time,
+Day_name,
+Month_name,
+Day_Classification,
+Time_Classification,
+ViewingHours,
+ViewingMinutes,
+Viewing_Duration_Category
+from CTE_1
+inner join CTE_2
+on CTE_1.UserID = CTE_2.UserID; 
